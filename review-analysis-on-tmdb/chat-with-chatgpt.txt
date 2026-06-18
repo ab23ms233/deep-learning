@@ -1,0 +1,511 @@
+TMDB Movie Recommendation Project - Handoff Document
+Project Overview
+
+The goal of this project is to build a content-based movie recommendation system using data obtained from the TMDB API.
+
+The recommendation system currently uses movie plot summaries (overviews) and TF-IDF vectorization to compute movie similarity and recommend movies with similar content.
+
+The project is intended as an NLP learning project and is being developed by a student learning Natural Language Processing and Machine Learning.
+
+Dataset Information
+
+Data was collected using the TMDB API.
+
+Example movie record:
+
+{
+    'adult': False,
+    'backdrop_path': '/gzmKA50LtpHSDYC7lKjUqLtK7Kn.jpg',
+    'genre_ids': [28, 80, 53],
+    'id': 479040,
+    'title': 'Acts of Violence',
+    'original_language': 'en',
+    'original_title': 'Acts of Violence',
+    'overview': 'When his fiancee is kidnapped by human traffickers...',
+    'popularity': 2.0057,
+    'poster_path': '/x6sBKpLa86CodgTkIK2r8Hnp07m.jpg',
+    'release_date': '2018-01-12',
+    'video': False,
+    'vote_average': 5.571,
+    'vote_count': 450
+}
+
+Important fields:
+
+title
+overview
+genre_ids
+id
+vote_average
+popularity
+
+The overview field is not a review. It is a movie synopsis/plot summary.
+
+Current Recommendation Pipeline
+Step 1: Text Source
+
+Only the overview field is currently used.
+
+Example:
+
+"When his fiancee is kidnapped by human traffickers..."
+Step 2: Text Preprocessing
+
+Planned preprocessing pipeline:
+
+Lowercase
+↓
+Remove punctuation
+↓
+Tokenization
+↓
+Stopword removal
+↓
+Lemmatization
+
+Libraries discussed:
+
+NLTK
+spaCy
+
+Recommended beginner stack:
+
+pandas
+re
+nltk
+sklearn
+Step 3: TF-IDF Vectorization
+
+Current vectorization:
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+
+tfidf = TfidfVectorizer(
+    stop_words="english"
+)
+
+tfidf_matrix = tfidf.fit_transform(df["overview"])
+Step 4: Similarity Matrix
+
+Current implementation:
+
+from sklearn.metrics.pairwise import cosine_similarity
+
+sim_matrix = cosine_similarity(
+    tfidf_matrix,
+    tfidf_matrix
+)
+
+Result:
+
+sim_matrix[i][j]
+
+represents similarity between movie i and movie j.
+
+Step 5: Recommendation Generation
+
+Current approach:
+
+Find movie index.
+Extract similarity scores.
+Sort descending.
+Return top N movies.
+
+Current code:
+
+sim_scores = list(enumerate(sim_matrix[index]))
+
+sorted_scores = sorted(
+    sim_scores,
+    key=lambda x: x[1],
+    reverse=True
+)
+
+top_indices = [
+    i[0]
+    for i in sorted_scores[:num_recommendations+1]
+]
+
+The queried movie is then removed from the recommendation list.
+
+Genre-Based Evaluation
+
+Current evaluation uses Jaccard similarity between genres.
+
+Function:
+
+def genre_similarity(query_genre, recommended_genre):
+    q_set = set(query_genre)
+    g_set = set(recommended_genre)
+
+    return len(q_set & g_set) / len(q_set | g_set)
+
+This is Jaccard similarity:
+
+Intersection / Union
+
+Example:
+
+A = {Action, Crime, Thriller}
+B = {Action, Crime}
+
+Score:
+
+2 / 3 = 0.667
+
+This is preferred over:
+
+Intersection / len(A)
+
+or
+
+Intersection / len(B)
+
+because Jaccard treats both sets symmetrically.
+
+Recommendation Results Observed
+Example 1
+
+Input:
+
+Swapped
+
+Recommendations:
+
+Primitive War
+Warriors of the Wind
+We Were Soldiers
+Night of the Comet
+Zambezia
+
+Assessment:
+
+Poor recommendations.
+
+Reason:
+
+TF-IDF matched generic words rather than semantic meaning.
+
+Example 2
+
+Input:
+
+The Godfather
+
+Recommendations:
+
+The Godfather Part II
+The Godfather Part III
+Damaged
+The Alto Knights
+Confession of Murder
+
+Assessment:
+
+Very good recommendations.
+
+Reason:
+
+The overview contains distinctive crime/mafia vocabulary.
+
+Example 3
+
+Input:
+
+Project Hail Mary
+
+Recommendations:
+
+Oxygen
+The Wandering Earth
+Sunshine
+Victor Frankenstein
+World's Greatest Dad
+
+Assessment:
+
+Mixed.
+
+Good:
+
+Oxygen
+The Wandering Earth
+Sunshine
+
+Bad:
+
+World's Greatest Dad
+
+Reason:
+
+TF-IDF matched generic terms.
+
+Current Conclusions
+
+The recommender performs well when:
+
+genres are distinctive
+vocabulary is specific
+
+Examples:
+
+Mafia films
+War films
+Space survival films
+
+The recommender performs poorly when:
+
+vocabulary is generic
+plots contain common words
+
+Examples:
+
+Family films
+Romance films
+Generic dramas
+Planned Improvement 1
+
+Add Genres
+
+Convert genre IDs:
+
+28 -> action
+80 -> crime
+53 -> thriller
+
+Create:
+
+genres_text
+
+Example:
+
+action crime thriller
+Planned Improvement 2
+
+Add Keywords
+
+TMDB endpoint:
+
+/movie/{movie_id}/keywords
+
+Example response:
+
+{
+    "keywords": [
+        {"id": 1930, "name": "kidnapping"},
+        {"id": 13005, "name": "human trafficking"}
+    ]
+}
+
+Convert:
+
+["kidnapping", "human trafficking"]
+
+into:
+
+kidnapping human_trafficking
+Planned Improvement 3
+
+Combined Feature
+
+Instead of:
+
+TFIDF(overview)
+
+Use:
+
+TFIDF(
+    overview
+    + genres
+    + keywords
+)
+
+Create:
+
+df["tags"]
+
+Example:
+
+When his fiancee is kidnapped...
+action crime thriller
+kidnapping human_trafficking rescue
+
+Then:
+
+tfidf.fit_transform(
+    df["tags"]
+)
+Alternative Advanced Approach
+
+Instead of mixing everything into text:
+
+Create separate feature matrices:
+
+overview_tfidf
+genre_matrix
+keyword_matrix
+
+Then combine:
+
+from scipy.sparse import hstack
+
+final_features = hstack([
+    overview_tfidf,
+    genre_matrix,
+    keyword_matrix
+])
+
+Then compute:
+
+cosine_similarity(
+    final_features,
+    final_features
+)
+
+This approach is expected to outperform simple concatenation.
+
+Discussion About IDs vs Names
+
+Question:
+
+Should genre IDs and keyword IDs be used instead of names?
+
+Example:
+
+28
+80
+53
+
+Answer:
+
+No.
+
+Reason:
+
+These numbers are arbitrary identifiers.
+
+TF-IDF treats:
+
+action crime thriller
+
+and
+
+28 80 53
+
+similarly as tokens.
+
+Using names is preferable because:
+
+interpretable
+easier debugging
+no loss of information
+Keyword Extraction Bottleneck
+
+Problem:
+
+Fetching keywords requires one API request per movie.
+
+Example:
+
+/movie/{id}/keywords
+
+This becomes slow for thousands of movies.
+
+Suggested solutions:
+
+Use overview only.
+Use overview + genres.
+Fetch keywords only for top/popular movies.
+Save fetched keywords locally.
+Use parallel requests.
+Use Kaggle TMDB datasets containing keywords.
+
+Recommendation:
+
+Do not spend excessive effort fetching keywords for every movie.
+
+Focus on the NLP pipeline.
+
+Evaluation Strategies Discussed
+Manual Evaluation
+
+Inspect recommendations manually.
+
+Measure:
+
+Relevant recommendations
+/
+Total recommendations
+Genre Overlap
+
+Use Jaccard similarity.
+
+Precision@K
+
+Example:
+
+Top 5 recommendations:
+3 relevant
+2 irrelevant
+
+Precision@5:
+
+3/5 = 0.6
+Compare Different Representations
+
+Suggested experiment:
+
+Model 1
+Overview only
+Model 2
+Overview + Genres
+Model 3
+Overview + Genres + Keywords
+Model 4
+TF-IDF + Genre Matrix + Keyword Matrix
+
+Compare recommendation quality.
+
+Current Recommendation
+
+Continue development using:
+
+Overview
++
+Genre Names
+
+before investing time in keyword extraction.
+
+This is expected to provide the largest improvement relative to implementation effort.
+
+Potential Future Improvements
+CountVectorizer baseline.
+TF-IDF.
+Word2Vec.
+Doc2Vec.
+Sentence Transformers.
+BERT embeddings.
+Genre-aware feature engineering.
+Keyword-aware feature engineering.
+Cast and director information.
+Hybrid recommendation systems.
+Current Project Status
+
+Completed:
+
+Data collection via TMDB API
+TF-IDF vectorization
+Cosine similarity matrix
+Recommendation generation
+Genre-based evaluation
+
+In Progress:
+
+Adding genre information to recommendation pipeline
+
+Future:
+
+Add keywords
+Compare feature representations
+Improve recommendation quality
+Evaluate with Precision@K and genre overlap
